@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Q2FA — 2FA QR Generator</title>
+  <meta name="description" content="Generate QR codes from TOTP URIs instantly. Client-side only, privacy-first." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface-hover: #f8f9fa;
+      --border: #e2e5ea;
+      --border-focus: #4285f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --accent: #4285f4;
+      --accent-light: rgba(66, 133, 244, 0.08);
+      --accent-glow: rgba(66, 133, 244, 0.25);
+      --error: #ea4335;
+      --success: #34a853;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 20px;
+      --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 60px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--accent);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    .header-icon svg { width: 22px; height: 22px; color: #fff; }
+
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+    .header p { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .account-card {
+      padding: 24px 24px 20px;
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+
+    .account-card.visible { display: block; }
+
+    .account-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .account-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .account-avatar span {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .account-info { min-width: 0; }
+
+    .account-issuer {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .totp-display {
+      background: var(--bg);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .totp-progress-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+      transition: width 1s linear, background 0.3s ease;
+    }
+
+    .totp-progress-bar.urgent { background: var(--error); }
+
+    .totp-code {
+      font-family: var(--font-mono);
+      font-size: 36px;
+      font-weight: 600;
+      letter-spacing: 10px;
+      color: var(--text-primary);
+      line-height: 1;
+      margin-bottom: 6px;
+      transition: color 0.2s;
+    }
+
+    .totp-code.updating { color: var(--accent); }
+
+    .totp-period {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .totp-period .countdown {
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: color 0.3s;
+    }
+
+    .totp-period .countdown.urgent { color: var(--error); }
+
+    .account-actions { display: flex; gap: 8px; }
+
+    .btn-icon {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 12px;
+      background: var(--surface-hover);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-ui);
+    }
+
+    .btn-icon svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    .btn-icon:hover {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-icon.success {
+      background: rgba(52, 168, 83, 0.1);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .btn-icon svg.icon-check { display: none; }
+    .btn-icon.success svg.icon-copy { display: none; }
+    .btn-icon.success svg.icon-check { display: block; }
+
+    .divider { height: 1px; background: var(--border); margin: 0; }
+    .input-section { padding: 24px; }
+
+    .input-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      letter-spacing: 0.2px;
+    }
+
+    .input-wrapper { position: relative; }
+
+    #uri-input {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      resize: none;
+      min-height: 80px;
+    }
+
+    #uri-input::placeholder { color: var(--text-muted); }
+    #uri-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
+    }
+    #uri-input.error {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.1);
+    }
+
+    .input-wrapper.shake {
+      animation: shake 0.35s cubic-bezier(.36,.07,.19,.97);
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translateX(-2px); }
+      20%, 80% { transform: translateX(3px); }
+      30%, 50%, 70% { transform: translateX(-4px); }
+      40%, 60% { transform: translateX(4px); }
+    }
+
+    #btn-generate {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+
+    #btn-generate svg { width: 16px; height: 16px; }
+    #btn-generate:hover:not(:disabled) {
+      background: #3367d6;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+    #btn-generate:active:not(:disabled) { transform: translateY(0); }
+    #btn-generate:disabled {
+      background: #c8d0db;
+      color: #8a94a6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .error-msg {
+      display: none;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: rgba(234, 67, 53, 0.06);
+      border: 1px solid rgba(234, 67, 53, 0.2);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--error);
+      align-items: center;
+      gap: 6px;
+    }
+
+    .error-msg.visible { display: flex; }
+    .error-msg svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    .qr-section { padding: 20px 24px 24px; display: none; }
+    .qr-section.visible { display: block; }
+
+    .qr-container {
+      background: #fff;
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+      line-height: 0;
+    }
+
+    .qr-container canvas { display: block; margin: 0 auto; }
+
+    .qr-actions { display: flex; gap: 8px; }
+
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .footer svg { width: 12px; height: 12px; }
+
+    @media (max-width: 440px) {
+      body { padding: 24px 12px 40px; }
+      .account-card, .input-section, .qr-section { padding: 20px 16px; }
+      .totp-code { font-size: 30px; letter-spacing: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <h1>Q2FA</h1>
+    <p>TOTP Authenticator Generator</p>
+  </div>
+
+  <div class="card" id="main-card">
+
+    <div class="account-card" id="account-card">
+      <div class="account-header">
+        <div class="account-avatar"><span id="avatar-letter">?</span></div>
+        <div class="account-info">
+          <div class="account-issuer" id="meta-issuer">—</div>
+          <div class="account-label" id="meta-account">—</div>
+        </div>
+      </div>
+
+      <div class="totp-display">
+        <div class="totp-code" id="totp-code">—— ——</div>
+        <div class="totp-period">Refreshes in <span class="countdown" id="totp-countdown">30</span>s</div>
+        <div class="totp-progress-bar" id="totp-progress"></div>
+      </div>
+
+      <div class="account-actions">
+        <button class="btn-icon" id="btn-copy">
+          <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="copy-label">Copy URI</span>
+        </button>
+        <button class="btn-icon" id="btn-download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save QR
+        </button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="input-section">
+      <div class="input-label">Paste your otpauth:// URI</div>
+      <div class="input-wrapper" id="input-wrapper">
+        <textarea id="uri-input" placeholder="otpauth://totp/GitHub:xayoa@xayoa.com?secret=JBSWY3DPEHPK3PXP&amp;issuer=GitHub&amp;algorithm=SHA1&amp;digits=6&amp;period=30" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
+
+      <div class="error-msg" id="error-msg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="error-text"></span>
+      </div>
+
+      <button id="btn-generate" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Generate QR Code
+      </button>
+    </div>
+
+    <div class="qr-section" id="qr-section">
+      <div class="qr-container" id="qr-container"></div>
+      <div class="qr-actions">
+        <button class="btn-icon" id="btn-copy2">
+          <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="copy-label2">Copy URI</span>
+        </button>
+        <button class="btn-icon" id="btn-download2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save QR
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    100% client-side &middot; no data leaves your browser
+  </div>
+
+  <!-- QR Code Generator — Kazuhiko Arase (MIT License) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+
+  <!-- App Logic -->
+  <script>
+    (function() {
+      var inputWrapper = document.getElementById('input-wrapper');
+      var uriInput = document.getElementById('uri-input');
+      var btnGenerate = document.getElementById('btn-generate');
+      var errorMsg = document.getElementById('error-msg');
+      var errorText = document.getElementById('error-text');
+      var accountCard = document.getElementById('account-card');
+      var avatarLetter = document.getElementById('avatar-letter');
+      var metaAccount = document.getElementById('meta-account');
+      var metaIssuer = document.getElementById('meta-issuer');
+      var totpCode = document.getElementById('totp-code');
+      var totpCountdown = document.getElementById('totp-countdown');
+      var totpProgress = document.getElementById('totp-progress');
+      var qrSection = document.getElementById('qr-section');
+      var qrContainer = document.getElementById('qr-container');
+      var btnCopy = document.getElementById('btn-copy');
+      var btnCopy2 = document.getElementById('btn-copy2');
+      var btnDownload = document.getElementById('btn-download');
+      var btnDownload2 = document.getElementById('btn-download2');
+      var copyLabel = document.getElementById('copy-label');
+      var copyLabel2 = document.getElementById('copy-label2');
+
+      var currentURI = '';
+      var copyTimeout = null;
+      var tickerInterval = null;
+
+      function base32Decode(encoded) {
+        var B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        var cleaned = encoded.toUpperCase().replace(/[\s=]/g, '');
+        var bytes = [];
+        var buffer = 0, bitsLeft = 0;
+        for (var i = 0; i < cleaned.length; i++) {
+          var val = B32.indexOf(cleaned[i]);
+          if (val === -1) throw new Error('Invalid base32 char: ' + cleaned[i]);
+          buffer = (buffer << 5) | val;
+          bitsLeft += 5;
+          if (bitsLeft >= 8) { bitsLeft -= 8; bytes.push((buffer >>> bitsLeft) & 0xff); }
+        }
+        return new Uint8Array(bytes);
+      }
+
+      function totpGenerate(secret, digits, period) {
+        return new Promise(function(resolve) {
+          var timeStep = Math.floor(Date.now() / 1000 / period);
+          var counterBytes = new Uint8Array(8);
+          var t = timeStep;
+          for (var i = 7; i >= 0; i--) { counterBytes[i] = t & 0xff; t = (t >> 8); }
+          crypto.subtle.importKey('raw', base32Decode(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+          ).then(function(keyData) {
+            return crypto.subtle.sign('HMAC', keyData, counterBytes);
+          }).then(function(hmac) {
+            var h = new Uint8Array(hmac);
+            var offset = h[hmac.byteLength - 1] & 0x0f;
+            var code = (
+              ((h[offset] & 0x7f) << 24) |
+              ((h[offset + 1] & 0xff) << 16) |
+              ((h[offset + 2] & 0xff) << 8) |
+              (h[offset + 3] & 0xff)
+            ) % Math.pow(10, digits);
+            resolve(code.toString().padStart(digits, '0'));
+          });
+        });
+      }
+
+      function formatCode(raw) { return raw.replace(/(\d{3})(\d{3})/, '$1 $2'); }
+
+      function startTicker(parsed) {
+        if (tickerInterval) clearInterval(tickerInterval);
+        var period = 30;
+        function tick() {
+          totpGenerate(parsed.secret, 6, period).then(function(raw) {
+            totpCode.classList.add('updating');
+            totpCode.textContent = formatCode(raw);
+            setTimeout(function() { totpCode.classList.remove('updating'); }, 250);
+            var elapsed = (Date.now() / 1000) % period;
+            var remaining = Math.ceil(period - elapsed);
+            totpCountdown.textContent = remaining;
+            totpProgress.style.width = (remaining / period * 100) + '%';
+            var urgent = remaining <= 5;
+            totpCountdown.classList.toggle('urgent', urgent);
+            totpProgress.classList.toggle('urgent', urgent);
+          });
+        }
+        tick();
+        tickerInterval = setInterval(tick, 1000);
+      }
+
+      function parseTOTPURI(raw) {
+        var val = raw.trim();
+        if (!val) return null;
+        var uri;
+        try { uri = new URL(val); } catch(e) { return null; }
+        if (uri.protocol !== 'otpauth:') return null;
+        if (uri.hostname !== 'totp' && uri.hostname !== 'hotp') return null;
+        var params = new URLSearchParams(uri.search);
+        var label = uri.pathname.slice(1);
+        try { label = decodeURIComponent(label); } catch(e) {}
+        var issuer = params.get('issuer') || '';
+        try { if (issuer) issuer = decodeURIComponent(issuer); } catch(e) {}
+        if (!issuer && label.indexOf(':') > -1) {
+          var parts = label.split(':');
+          issuer = parts[0].trim();
+          label = parts.slice(1).join(':').trim();
+        }
+        if (!label) label = 'Unnamed Account';
+        var secret = params.get('secret');
+        if (!secret) return null;
+        return { label: label, issuer: issuer, secret: secret, raw: val };
+      }
+
+      function generateQR(uri) {
+        var parsed = parseTOTPURI(uri);
+        if (!parsed) { showError('Invalid TOTP URI — check the format and secret field'); return; }
+        clearError();
+        currentURI = uri;
+        avatarLetter.textContent = (parsed.issuer || parsed.label).charAt(0).toUpperCase();
+        metaIssuer.textContent = parsed.issuer || '—';
+        metaAccount.textContent = parsed.label;
+        accountCard.classList.add('visible');
+
+        qrContainer.innerHTML = '';
+        try {
+          var qr = qrcode(0, 'M'); // auto-detect version, M-level EC
+          qr.addData(parsed.raw);
+          qr.make();
+          var size = 160;
+          var cellSize = Math.floor(size / qr.getModuleCount());
+          var margin = Math.floor((size - qr.getModuleCount() * cellSize) / 2);
+          var canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = '#000000';
+          for (var r = 0; r < qr.getModuleCount(); r++) {
+            for (var c = 0; c < qr.getModuleCount(); c++) {
+              if (qr.isDark(r, c)) {
+                ctx.fillRect(margin + c * cellSize, margin + r * cellSize, cellSize, cellSize);
+              }
+            }
+          }
+          qrContainer.appendChild(canvas);
+        } catch(err) { showError('Failed to generate QR code: ' + err.message); return; }
+
+        qrSection.classList.add('visible');
+        startTicker(parsed);
+        accountCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      function doCopy(btn, label) {
+        if (!currentURI) return;
+        navigator.clipboard.writeText(currentURI).catch(function() {
+          var ta = document.createElement('textarea');
+          ta.value = currentURI; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta);
+        });
+        btn.classList.add('success');
+        label.textContent = 'Copied!';
+        if (copyTimeout) clearTimeout(copyTimeout);
+        copyTimeout = setTimeout(function() { btn.classList.remove('success'); label.textContent = 'Copy URI'; }, 2000);
+      }
+
+      function downloadQR() {
+        var canvas = qrContainer.querySelector('canvas');
+        if (!canvas) return;
+        var link = document.createElement('a');
+        link.download = 'q2fa-auth.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }
+
+      function clearError() { errorMsg.classList.remove('visible'); uriInput.classList.remove('error'); }
+
+      function showError(msg) {
+        errorText.textContent = msg;
+        errorMsg.classList.add('visible');
+        uriInput.classList.add('error');
+        inputWrapper.classList.add('shake');
+        inputWrapper.addEventListener('animationend', function() { inputWrapper.classList.remove('shake'); }, { once: true });
+      }
+
+      uriInput.addEventListener('input', function() { clearError(); btnGenerate.disabled = !uriInput.value.trim(); });
+      uriInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (uriInput.value.trim()) generateQR(uriInput.value); } });
+      btnGenerate.addEventListener('click', function() { if (uriInput.value.trim()) generateQR(uriInput.value); });
+      btnCopy.addEventListener('click', function() { doCopy(btnCopy, copyLabel); });
+      btnCopy2.addEventListener('click', function() { doCopy(btnCopy2, copyLabel2); });
+      btnDownload.addEventListener('click', downloadQR);
+      btnDownload2.addEventListener('click', downloadQR);
+
+      var SAMPLE_URI = 'otpauth://totp/GitHub:xayoa@xayoa.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30';
+      uriInput.value = SAMPLE_URI;
+      btnGenerate.disabled = false;
+      generateQR(SAMPLE_URI);
+    })();
+  </script>
+</body>
+</html>
