@@ -1,5 +1,5 @@
-# Cloudflare Pages project config
-# Deploy with: npx wrangler pages deploy dist
-
-pages_build_output_dir = "dist"
+name = "q2fa"
 compatibility_date = "2024-01-01"
+
+[assets]
+directory = "dist"
