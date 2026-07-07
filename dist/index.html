@@ -766,10 +766,7 @@
       btnDownload.addEventListener('click', downloadQR);
       btnDownload2.addEventListener('click', downloadQR);
 
-      var SAMPLE_URI = 'otpauth://totp/GitHub:xayoa@xayoa.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30';
-      uriInput.value = SAMPLE_URI;
       refreshGenerateState();
-      generateQR(SAMPLE_URI);
     })();
   </script>
 </body>
