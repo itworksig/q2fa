@@ -233,6 +233,14 @@
       letter-spacing: 0.2px;
     }
 
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      letter-spacing: 0.2px;
+    }
+
     .input-wrapper { position: relative; }
 
     #uri-input {
@@ -256,6 +264,42 @@
       box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
     }
     #uri-input.error {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.1);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    #secret-input,
+    #issuer-input,
+    #account-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    #secret-input:focus,
+    #issuer-input:focus,
+    #account-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.12);
+    }
+
+    #secret-input.error,
+    #issuer-input.error,
+    #account-input.error {
       border-color: var(--error);
       box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.1);
     }
@@ -356,6 +400,7 @@
       body { padding: 24px 12px 40px; }
       .account-card, .input-section, .qr-section { padding: 20px 16px; }
       .totp-code { font-size: 30px; letter-spacing: 8px; }
+      .field-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -404,9 +449,23 @@
     <div class="divider"></div>
 
     <div class="input-section">
-      <div class="input-label">Paste your otpauth:// URI</div>
+      <div class="input-label">Paste URI or enter Secret</div>
       <div class="input-wrapper" id="input-wrapper">
         <textarea id="uri-input" placeholder="otpauth://totp/GitHub:xayoa@xayoa.com?secret=JBSWY3DPEHPK3PXP&amp;issuer=GitHub&amp;algorithm=SHA1&amp;digits=6&amp;period=30" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
+      <div style="margin-top: 10px;">
+        <div class="field-label">Secret (Base32)</div>
+        <input id="secret-input" type="text" placeholder="JBSWY3DPEHPK3PXP" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
+      </div>
+      <div class="field-grid">
+        <div>
+          <div class="field-label">Issuer (optional)</div>
+          <input id="issuer-input" type="text" placeholder="GitHub" />
+        </div>
+        <div>
+          <div class="field-label">Account (optional)</div>
+          <input id="account-input" type="text" placeholder="yxxiao@example.com" />
+        </div>
       </div>
 
       <div class="error-msg" id="error-msg">
@@ -449,6 +508,9 @@
     (function() {
       var inputWrapper = document.getElementById('input-wrapper');
       var uriInput = document.getElementById('uri-input');
+      var secretInput = document.getElementById('secret-input');
+      var issuerInput = document.getElementById('issuer-input');
+      var accountInput = document.getElementById('account-input');
       var btnGenerate = document.getElementById('btn-generate');
       var errorMsg = document.getElementById('error-msg');
       var errorText = document.getElementById('error-text');
@@ -472,6 +534,10 @@
       var copyTimeout = null;
       var tickerInterval = null;
 
+      function normalizeBase32(secret) {
+        return (secret || '').toUpperCase().replace(/[\s=]/g, '');
+      }
+
       function base32Decode(encoded) {
         var B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         var cleaned = encoded.toUpperCase().replace(/[\s=]/g, '');
@@ -487,13 +553,16 @@
         return new Uint8Array(bytes);
       }
 
-      function totpGenerate(secret, digits, period) {
+      function totpGenerate(secret, digits, period, algorithm) {
+        var hashName = 'SHA-1';
+        if (algorithm === 'SHA256') hashName = 'SHA-256';
+        if (algorithm === 'SHA512') hashName = 'SHA-512';
         return new Promise(function(resolve) {
           var timeStep = Math.floor(Date.now() / 1000 / period);
           var counterBytes = new Uint8Array(8);
           var t = timeStep;
           for (var i = 7; i >= 0; i--) { counterBytes[i] = t & 0xff; t = (t >> 8); }
-          crypto.subtle.importKey('raw', base32Decode(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+          crypto.subtle.importKey('raw', base32Decode(secret), { name: 'HMAC', hash: hashName }, false, ['sign']
           ).then(function(keyData) {
             return crypto.subtle.sign('HMAC', keyData, counterBytes);
           }).then(function(hmac) {
@@ -510,13 +579,18 @@
         });
       }
 
-      function formatCode(raw) { return raw.replace(/(\d{3})(\d{3})/, '$1 $2'); }
+      function formatCode(raw) {
+        if (raw.length === 6) return raw.replace(/(\d{3})(\d{3})/, '$1 $2');
+        return raw;
+      }
 
       function startTicker(parsed) {
         if (tickerInterval) clearInterval(tickerInterval);
-        var period = 30;
+        var period = parsed.period || 30;
+        var digits = parsed.digits || 6;
+        var algorithm = parsed.algorithm || 'SHA1';
         function tick() {
-          totpGenerate(parsed.secret, 6, period).then(function(raw) {
+          totpGenerate(parsed.secret, digits, period, algorithm).then(function(raw) {
             totpCode.classList.add('updating');
             totpCode.textContent = formatCode(raw);
             setTimeout(function() { totpCode.classList.remove('updating'); }, 250);
@@ -527,6 +601,8 @@
             var urgent = remaining <= 5;
             totpCountdown.classList.toggle('urgent', urgent);
             totpProgress.classList.toggle('urgent', urgent);
+          }).catch(function() {
+            showError('Invalid Secret — expected Base32 characters A-Z and 2-7');
           });
         }
         tick();
@@ -553,14 +629,43 @@
         if (!label) label = 'Unnamed Account';
         var secret = params.get('secret');
         if (!secret) return null;
-        return { label: label, issuer: issuer, secret: secret, raw: val };
+        var digits = parseInt(params.get('digits') || '6', 10);
+        if (!Number.isFinite(digits) || digits < 6 || digits > 8) digits = 6;
+        var period = parseInt(params.get('period') || '30', 10);
+        if (!Number.isFinite(period) || period <= 0) period = 30;
+        var algorithm = (params.get('algorithm') || 'SHA1').toUpperCase();
+        if (algorithm !== 'SHA1' && algorithm !== 'SHA256' && algorithm !== 'SHA512') algorithm = 'SHA1';
+        return { label: label, issuer: issuer, secret: normalizeBase32(secret), digits: digits, period: period, algorithm: algorithm, raw: val };
+      }
+
+      function buildURIFromSecret(secret, issuer, account) {
+        var normalized = normalizeBase32(secret);
+        if (!normalized) return null;
+        var labelIssuer = (issuer || '').trim();
+        var labelAccount = (account || '').trim() || 'Imported Account';
+        var label = labelIssuer ? (labelIssuer + ':' + labelAccount) : labelAccount;
+        var params = new URLSearchParams();
+        params.set('secret', normalized);
+        if (labelIssuer) params.set('issuer', labelIssuer);
+        params.set('algorithm', 'SHA1');
+        params.set('digits', '6');
+        params.set('period', '30');
+        return 'otpauth://totp/' + encodeURIComponent(label) + '?' + params.toString();
+      }
+
+      function resolveInput() {
+        var rawURI = uriInput.value.trim();
+        if (rawURI) return rawURI;
+        var rawSecret = secretInput.value.trim();
+        if (!rawSecret) return null;
+        return buildURIFromSecret(rawSecret, issuerInput.value, accountInput.value);
       }
 
       function generateQR(uri) {
         var parsed = parseTOTPURI(uri);
         if (!parsed) { showError('Invalid TOTP URI — check the format and secret field'); return; }
         clearError();
-        currentURI = uri;
+        currentURI = parsed.raw;
         avatarLetter.textContent = (parsed.issuer || parsed.label).charAt(0).toUpperCase();
         metaIssuer.textContent = parsed.issuer || '—';
         metaAccount.textContent = parsed.label;
@@ -618,19 +723,44 @@
         link.click();
       }
 
-      function clearError() { errorMsg.classList.remove('visible'); uriInput.classList.remove('error'); }
+      function clearError() {
+        errorMsg.classList.remove('visible');
+        uriInput.classList.remove('error');
+        secretInput.classList.remove('error');
+      }
 
       function showError(msg) {
         errorText.textContent = msg;
         errorMsg.classList.add('visible');
-        uriInput.classList.add('error');
+        if (uriInput.value.trim()) {
+          uriInput.classList.add('error');
+        } else {
+          secretInput.classList.add('error');
+        }
         inputWrapper.classList.add('shake');
         inputWrapper.addEventListener('animationend', function() { inputWrapper.classList.remove('shake'); }, { once: true });
       }
 
-      uriInput.addEventListener('input', function() { clearError(); btnGenerate.disabled = !uriInput.value.trim(); });
-      uriInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (uriInput.value.trim()) generateQR(uriInput.value); } });
-      btnGenerate.addEventListener('click', function() { if (uriInput.value.trim()) generateQR(uriInput.value); });
+      function refreshGenerateState() {
+        btnGenerate.disabled = !uriInput.value.trim() && !secretInput.value.trim();
+      }
+
+      function tryGenerateFromInputs() {
+        var resolved = resolveInput();
+        if (!resolved) {
+          showError('Please paste a TOTP URI or enter a Secret');
+          return;
+        }
+        generateQR(resolved);
+      }
+
+      uriInput.addEventListener('input', function() { clearError(); refreshGenerateState(); });
+      secretInput.addEventListener('input', function() { clearError(); refreshGenerateState(); });
+      issuerInput.addEventListener('input', function() { clearError(); });
+      accountInput.addEventListener('input', function() { clearError(); });
+      uriInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!btnGenerate.disabled) tryGenerateFromInputs(); } });
+      secretInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); if (!btnGenerate.disabled) tryGenerateFromInputs(); } });
+      btnGenerate.addEventListener('click', function() { tryGenerateFromInputs(); });
       btnCopy.addEventListener('click', function() { doCopy(btnCopy, copyLabel); });
       btnCopy2.addEventListener('click', function() { doCopy(btnCopy2, copyLabel2); });
       btnDownload.addEventListener('click', downloadQR);
@@ -638,7 +768,7 @@
 
       var SAMPLE_URI = 'otpauth://totp/GitHub:xayoa@xayoa.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30';
       uriInput.value = SAMPLE_URI;
-      btnGenerate.disabled = false;
+      refreshGenerateState();
       generateQR(SAMPLE_URI);
     })();
   </script>

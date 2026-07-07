@@ -1,14 +1,14 @@
 # Q2FA — 2FA QR Code Generator
 
-A privacy-first, zero-server 2FA QR code generator. Paste any TOTP URI, get a perfect QR code instantly. Everything runs 100% in your browser — nothing is ever sent to any server.
+A privacy-first, zero-server 2FA QR code generator. Paste any TOTP URI **or enter a Base32 Secret**, get a perfect QR code instantly. Everything runs 100% in your browser — nothing is ever sent to any server.
 
 ---
 
 ## Features
 
-- **Instant QR generation** from `otpauth://totp/...` URIs
+- **Instant QR generation** from `otpauth://totp/...` URIs or raw Base32 secrets
 - **Fully client-side** — no data leaves your browser
-- **Smart URI parsing** — extracts label and issuer automatically
+- **Smart URI parsing & building** — extracts metadata from URI, or builds a valid URI from Secret + optional Issuer/Account
 - **Copy URI** and **Download PNG** actions
 - **Error handling** — validates URI format, missing secret, and bad encoding
 - **Sample URI** — one click to see it in action
@@ -23,7 +23,7 @@ A privacy-first, zero-server 2FA QR code generator. Paste any TOTP URI, get a pe
 
 ### Generating a QR Code
 
-1. Paste a TOTP URI from your 2FA setup (e.g. from GitHub, Google, etc.)
+1. Paste a TOTP URI from your 2FA setup (e.g. from GitHub, Google, etc.), **or** input your Base32 Secret directly
 2. Click **Generate QR Code** (or press `Enter`)
 3. Scan the QR with Google Authenticator, Authy, or any TOTP app
 4. Use **Copy URI** to save the full URI, or **Download PNG** to save the QR image
