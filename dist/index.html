@@ -365,6 +365,31 @@
     .error-msg.visible { display: flex; }
     .error-msg svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+    .help-box {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-hover);
+    }
+
+    .help-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: 0.2px;
+    }
+
+    .help-list {
+      margin-left: 16px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .help-list li { margin-bottom: 4px; }
+
     .qr-section { padding: 20px 24px 24px; display: none; }
     .qr-section.visible { display: block; }
 
@@ -471,6 +496,16 @@
       <div class="error-msg" id="error-msg">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span id="error-text"></span>
+      </div>
+
+      <div class="help-box">
+        <div class="help-title">How to use</div>
+        <ol class="help-list">
+          <li>Method 1: Paste full <code>otpauth://totp/...</code> URI, then click <strong>Generate QR Code</strong>.</li>
+          <li>Method 2: Leave URI empty, fill <strong>Secret (Base32)</strong> (for example: <code>JBSWY3DPEHPK3PXP</code>).</li>
+          <li>Optional: Fill <strong>Issuer</strong> and <strong>Account</strong> (for example: <code>email@example.com</code>).</li>
+          <li>Scan QR with Google Authenticator / Authy / 1Password and use the generated code to log in.</li>
+        </ol>
       </div>
 
       <button id="btn-generate" disabled>
