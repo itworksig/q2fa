@@ -11,7 +11,7 @@ A privacy-first, zero-server 2FA QR code generator. Paste any TOTP URI **or ente
 - **Smart URI parsing & building** — extracts metadata from URI, or builds a valid URI from Secret + optional Issuer/Account
 - **Copy URI** and **Download PNG** actions
 - **Error handling** — validates URI format, missing secret, and bad encoding
-- **Sample URI** — one click to see it in action
+- **URI + Secret modes** — works with full URIs or manual secret input
 - **Deploys in seconds** — single static HTML file on Cloudflare Pages (free)
 
 ---
@@ -28,10 +28,32 @@ A privacy-first, zero-server 2FA QR code generator. Paste any TOTP URI **or ente
 3. Scan the QR with Google Authenticator, Authy, or any TOTP app
 4. Use **Copy URI** to save the full URI, or **Download PNG** to save the QR image
 
+### Quick Tutorial
+
+#### Method A: Paste URI
+
+1. Paste your full `otpauth://totp/...` URI in the URI box.
+2. Click **Generate QR Code**.
+3. Scan with your authenticator app (Google Authenticator, Authy, 1Password, etc.).
+4. Use the generated TOTP code to verify login.
+
+#### Method B: Input Secret manually
+
+1. Keep URI box empty.
+2. Enter your Base32 value into **Secret (Base32)**.
+3. Optionally fill **Issuer** and **Account** (example: `email@example.com`).
+4. Click **Generate QR Code**, then scan in your authenticator app.
+
+#### Notes
+
+- Supported secret format: Base32 (`A-Z`, `2-7`; spaces and `=` are ignored).
+- If URI and Secret are both filled, URI takes priority.
+- All data stays in your browser.
+
 ### Example TOTP URI
 
 ```
-otpauth://totp/GitHub:yxxiao@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30
+otpauth://totp/GitHub:email@example.com?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&algorithm=SHA1&digits=6&period=30
 ```
 
 ---
